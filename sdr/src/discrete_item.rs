@@ -10,7 +10,7 @@ pub trait Discretizable {
 // Implement the trait for Item
 impl Discretizable for Item {
     fn discretize_shape(&self, resolution: f32, epsilon: f32) -> Vec<Vec<(f32, f32, i32)>> {
-        let mut edges: Vec<Edge> = self.shape.edge_iter().collect(); // Assuming a method that retrieves lines of the polygon
+        let mut edges: Vec<Edge> = self.shape.edge_iter().collect(); 
         edges.sort_by(|a, b| a.start.0.partial_cmp(&b.start.0).unwrap());
 
         let mut active_edges: Vec<Edge> = Vec::new();

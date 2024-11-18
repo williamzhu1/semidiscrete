@@ -63,7 +63,7 @@ fn main() {
         None => SmallRng::from_entropy(),
     };
 
-    let mut optimizer = LBFOptimizer::new(instance.clone(), config, rng);
+    let mut optimizer: LBFOptimizer = LBFOptimizer::new(instance.clone(), config, rng);
     let solution = optimizer.solve();
 
     let json_output = JsonOutput {

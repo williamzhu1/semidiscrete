@@ -1,101 +1,86 @@
+use std::{collections::HashSet, f32::EPSILON};
+
 use jagua_rs::entities::item::Item;
-use jagua_rs::geometry::primitives::edge::Edge;
-use crate::edge_extension::EdgeExtensions;
+
+use crate::approx_eq::ApproxEq;
+
 
 // Define a trait to be implemented for Item
 pub trait Discretizable {
-    fn discretize_shape(&self, resolution: f32) -> Vec<Vec<(f32, f32, i32)>>;
+    fn discretize_shape(&self, resolution: f32) -> Vec<(f32, Vec<(f32, f32)>)>;
+    fn intersect_vertical_line(&self, x_line: f32) -> Vec<(f32, f32)>;
 }
 
 // Implement the trait for Item
 impl Discretizable for Item {
-    fn discretize_shape(&self, resolution: f32) -> Vec<Vec<(f32, f32, i32)>> {
-        let mut edges: Vec<Edge> = self.shape.edge_iter().collect(); 
-        edges.sort_by(|a, b| a.start.0.partial_cmp(&b.start.0).unwrap());
+    fn intersect_vertical_line(&self, x_line: f32) -> Vec<(f32, f32)> {
+        let mut intersections = Vec::new();
+        let mut last_intersection: Option<f32> = None;
+        let mut unique_intersections = HashSet::new(); // Store unpaired start
 
-        let mut active_edges: Vec<Edge> = Vec::new();
-        let mut raw_discretized_shape: Vec<Vec<(f32, f32, i32)>> = Vec::new();
-
-        let mut x_idx = 0;
-        let mut x = x_idx as f32 * resolution;
-
-        while x <= self.shape.diameter + f32::EPSILON {
-            let mut discretized_segment: Vec<(f32, f32, i32)> = Vec::new();
-            let mut vertical_edges: Vec<Edge> = Vec::new();
-            let mut need_sort = false;
-            edges.retain(|edge| {
-                if edge.start.0 <= x + f32::EPSILON {
-                    if edge.coefficient().is_finite() {
-                        if edge.end.0 > x {
-                            active_edges.push(edge.clone());
-                            need_sort = true;
-                        }
-                    } else if edge.start.0 == x {
-                        vertical_edges.push(edge.clone());
-                    }
-                    false // Remove processed edge
-                } else {
-                    true // Keep unprocessed edge
-                }
-            });
-
-            if need_sort {
-                active_edges.sort_by(|a, b| a.start.1.partial_cmp(&b.start.1).unwrap());
+        for edge in self.shape.edge_iter() {
+            let (x_low, x_high) = if edge.start.0 < edge.end.0 {
+                (edge.start.0, edge.end.0)
+            } else {
+                (edge.end.0, edge.start.0)
+            };
+            if x_line < x_low || x_line > x_high {
+                continue;
             }
 
-            vertical_edges.sort_by(|a, b| a.start.1.partial_cmp(&b.start.1).unwrap());
+            let t = (x_line - edge.start.0) / (edge.end.0 - edge.start.0);
+            if t >= 0.0 && t <= 1.0 {
+                let y_intersect = edge.start.1 + t * (edge.end.1 - edge.start.1);
 
-            let mut temp_y = -1.0;
-            let mut active_iter = active_edges.iter();
-            let mut vertical_iter = vertical_edges.iter();
-
-            while let Some(active_edge) = active_iter.next() {
-                let y = active_edge.y_at_x(x);
-
-                if let Some(vertical_edge) = vertical_iter.clone().next() {
-                    if (y - vertical_edge.start.1).abs() < f32::EPSILON {
-                        if active_edge.coefficient() == 1.0 {
-                            if temp_y == -1.0 {
-                                temp_y = y;
-                            } else {
-                                discretized_segment.push((temp_y, y, 0));
-                                temp_y = -1.0;
-                            }
-                        }
-
-                        let side = if active_edge.end.1 == x { -1 } else { 1 } * active_edge.coefficient().round() as i32;
-                        discretized_segment.push((y, vertical_edge.end.1, side));
-
-                        vertical_iter.next();
-                    }
-                } else {
-                    if (temp_y - y).abs() < f32::EPSILON && ((active_edge.end.1 - active_edge.start.1) / (active_edge.end.0 - active_edge.start.0))
-                        != active_edges.iter().rev().next().map_or(0.0, |e| (e.end.1 - e.start.1) / (e.end.0 - e.start.0))
-                    {
-                        let side = if active_edge.start.0 == x { -1 } else { 1 } * active_edge.coefficient().round() as i32;
-                        discretized_segment.push((y, y, side));
-                        temp_y = -1.0;
+                let approx_intersect = ApproxEq::from(y_intersect); // Approximate equality
+                if !unique_intersections.contains(&approx_intersect) {
+                    unique_intersections.insert(approx_intersect);
+                    
+                    if let Some(last_y_val) = last_intersection {
+                        intersections.push((last_y_val, y_intersect));
+                        last_intersection = None; // Reset for next pair
                     } else {
-                        let last_y = discretized_segment.last().map_or(-1.0, |(_, end_y, _)| *end_y);
-                        if last_y != y || active_edge.coefficient() != active_edges.iter().rev().next().map_or(0.0, |e| e.coefficient()) {
-                            if temp_y == -1.0 {
-                                temp_y = y;
-                            } else {
-                                discretized_segment.push((temp_y, y, 0));
-                                temp_y = -1.0;
-                            }
-                        }
+                        last_intersection = Some(y_intersect);
                     }
                 }
             }
-
-            raw_discretized_shape.push(discretized_segment);
-            x_idx += 1;
-            x = resolution * x_idx as f32;
-
-            active_edges.retain(|edge| edge.end.0 + f32::EPSILON >= x);
         }
 
-        raw_discretized_shape
+        // **Final Merge Pass**
+        intersections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        let mut merged_segments = Vec::new();
+        
+        if !intersections.is_empty() {
+            let mut current_segment = intersections[0];
+
+            for &segment in intersections.iter().skip(1) {
+                if (current_segment.1 - segment.0).abs() < EPSILON {
+                    current_segment.1 = segment.1; // Merge
+                } else {
+                    merged_segments.push(current_segment);
+                    current_segment = segment;
+                }
+            }
+            merged_segments.push(current_segment);
+        }
+
+        merged_segments
+    }
+    fn discretize_shape(&self, resolution: f32) -> Vec<(f32, Vec<(f32, f32)>)> {
+        let rect = &self.shape.bbox;
+        let mut results = Vec::new();
+
+        let mut x_line = rect.x_min;
+        while x_line <= rect.x_max + EPSILON {
+            let ys = self.intersect_vertical_line(x_line);
+
+            if !ys.is_empty() {
+                results.push((x_line, ys));
+            }
+
+            x_line += resolution;
+        }
+
+        results
     }
 }

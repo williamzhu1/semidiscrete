@@ -58,11 +58,6 @@ fn main() {
     let parser = Parser::new(poly_simpl_config, config.cde_config, true);
     let instance = parser.parse(&json_instance);
 
-    let rng = match config.prng_seed {
-        Some(seed) => SmallRng::seed_from_u64(seed),
-        None => SmallRng::from_entropy(),
-    };
-
     if !args.solution_folder.exists() {
         fs::create_dir_all(&args.solution_folder).unwrap_or_else(|_| {
             panic!(

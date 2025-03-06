@@ -42,7 +42,7 @@ mod tests {
         let parser = Parser::new(poly_simpl_config, config.cde_config, true);
         let instance = parser.parse(&json_instance);
 
-        let mut optimizer = LBFOptimizer::new(instance.clone(), config, SmallRng::seed_from_u64(0));
+        let mut optimizer: LBFOptimizer = LBFOptimizer::new(instance.clone(), config, SmallRng::seed_from_u64(0));
 
         let mut rng = SmallRng::seed_from_u64(0);
 

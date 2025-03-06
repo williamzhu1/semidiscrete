@@ -5,8 +5,10 @@ pub trait EdgeExtensions {
     /// Calculates the y-coordinate at a given x-coordinate on the edge.
     fn y_at_x(&self, x: f32) -> f32;
 
-    /// Calculates the coefficient (slope) of the edge.
-    fn coefficient(&self) -> f32;
+    /// Calculates the gradient (slope) of the edge.
+    fn gradient(&self) -> f32;
+
+    fn integral(&self) -> f32;
 }
 
 impl EdgeExtensions for Edge {
@@ -34,7 +36,7 @@ impl EdgeExtensions for Edge {
         m * x + b
     }
 
-    fn coefficient(&self) -> f32 {
+    fn gradient(&self) -> f32 {
         let Point(x1, y1) = self.start;
         let Point(x2, y2) = self.end;
 
@@ -45,5 +47,13 @@ impl EdgeExtensions for Edge {
 
         // Calculate and return the slope (m)
         (y2 - y1) / (x2 - x1)
+    }
+
+    fn integral(&self) -> f32 {
+        let (x1, y1) = (self.start.0, self.start.1);
+        let (x2, y2) = (self.end.0, self.end.1);
+        // Using the same formula as original code snippet:
+        // S = (x2 - x1)*((y1 + y2)/2)
+        (x2 - x1) * ((y1 + y2) / 2.0)
     }
 }

@@ -24,6 +24,14 @@ impl Discretizable for Item {
             } else {
                 (edge.end.0, edge.start.0)
             };
+            // Handle direct vertex intersections
+            if edge.start.0 == x_line {
+                intersections.push((edge.start.1, edge.start.1));
+            }
+            if edge.end.0 == x_line {
+                intersections.push((edge.end.1, edge.end.1));
+            }
+
             if x_line < x_low || x_line > x_high {
                 continue;
             }
